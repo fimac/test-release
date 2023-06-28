@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  release:
+    types:
+      - released
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+jobs:
+  build-and-test-ruby-gems:
+    uses: ./.github/workflows/build-gem.yml
+  publish-gem:
+    name: "Publish toy-ore gem"
+    runs-on: ubuntu-latest
+    needs: build-and-test-ruby-gems
+    steps:
+      - run: echo ${{ needs.build-and-test-ruby-gems.outputs.gem-name }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.2
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.build-and-test-ruby-gems.outputs.gem-name }}
+      - name: Publish gem
+        run: |
+          mkdir -p $HOME/.gem
+          touch $HOME/.gem/credentials
+          chmod 0600 $HOME/.gem/credentials
+          printf -- "---\n:github: ${GEM_HOST_API_KEY}\n" > $HOME/.gem/credentials
+          echo ".....pushing gem"
+          echo ${{ needs.build-and-test-ruby-gems.outputs.gem-name }}
+          gem push ${{ needs.build-and-test-ruby-gems.outputs.gem-name }}
+        env:
+          GEM_HOST_API_KEY: "${{secrets.RUBYGEMS_AUTH_TOKEN}}"
